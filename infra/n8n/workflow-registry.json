@@ -1,0 +1,45 @@
+[
+  {
+    "name": "production-lifecycle",
+    "description": "Handles production creation, structuring, and planning events",
+    "webhook_url": "{{N8N_WEBHOOK_BASE_URL}}/production-lifecycle",
+    "events": [
+      "PRODUCTION_CREATED",
+      "PRODUCTION_STRUCTURED",
+      "PRODUCTION_VISUAL_PLANNED"
+    ],
+    "actions": [
+      "send_notifications",
+      "update_dashboards",
+      "trigger_quality_checks"
+    ]
+  },
+  {
+    "name": "media-processing",
+    "description": "Manages media sourcing and human review workflows",
+    "webhook_url": "{{N8N_WEBHOOK_BASE_URL}}/media-processing",
+    "events": [
+      "PRODUCTION_MEDIA_SOURCING",
+      "PRODUCTION_HUMAN_REVIEW_REQUIRED"
+    ],
+    "actions": [
+      "validate_assets",
+      "populate_review_queue",
+      "send_review_notifications"
+    ]
+  },
+  {
+    "name": "render-pipeline",
+    "description": "Coordinates render execution and delivery",
+    "webhook_url": "{{N8N_WEBHOOK_BASE_URL}}/render-pipeline",
+    "events": [
+      "PRODUCTION_RENDER_COMPLETED",
+      "PRODUCTION_RENDER_FAILED"
+    ],
+    "actions": [
+      "distribute_content",
+      "update_delivery_status",
+      "trigger_post_processing"
+    ]
+  }
+]

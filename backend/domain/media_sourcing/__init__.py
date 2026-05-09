@@ -11,6 +11,22 @@ from .adapters import (
     ArchiveMediaAdapter,
     ManualSelectionAdapter,
 )
+from .provider import (
+    MediaProvider,
+    ProviderType,
+    ProviderSourceType,
+    ProviderStatus,
+    MediaProviderRegistry,
+    provider_registry,
+)
+from .query_strategy import (
+    QueryStrategy,
+    QueryStrategyType,
+    QueryAttempt,
+    DiagnosticCategory,
+    QueryReformulation,
+)
+from domain.visual_planning.models import VisualBrief
 
 __all__ = [
     "MediaSourceType",
@@ -22,4 +38,16 @@ __all__ = [
     "StockMediaAdapter",
     "ArchiveMediaAdapter",
     "ManualSelectionAdapter",
+    "MediaProvider",
+    "ProviderType",
+    "ProviderSourceType",
+    "ProviderStatus",
+    "MediaProviderRegistry",
+    "provider_registry",
+    "QueryStrategy",
+    "QueryStrategyType",
+    "QueryAttempt",
+    "DiagnosticCategory",
+    "QueryReformulation",
+    "VisualBrief",
 ]

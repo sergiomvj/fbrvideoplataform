@@ -4,16 +4,26 @@ from fastapi.testclient import TestClient
 from main import app
 
 
-@pytest.fixture
-def client() -> TestClient:
-    from api.routes.productions import _productions_store
-    _productions_store.clear()
-    return TestClient(app)
+TEST_INTERNAL_TOKEN = "test-internal-token-12345"
 
 
-@pytest.fixture
-def auth_headers() -> dict[str, str]:
-    return {"X-User-Id": "test-user-001"}
+class TestInternalTokenEnforcement:
+    def test_request_without_internal_token_returns_401(self, client: TestClient) -> None:
+        response = client.get(
+            "/templates/",
+            headers={"X-User-Id": "test-user-001"},
+        )
+        assert response.status_code == 401
+
+    def test_request_with_wrong_internal_token_returns_401(self, client: TestClient) -> None:
+        response = client.get(
+            "/templates/",
+            headers={
+                "X-User-Id": "test-user-001",
+                "X-Internal-Token": "wrong-token",
+            },
+        )
+        assert response.status_code == 401
 
 
 class TestTemplateRegistry:
@@ -174,7 +184,11 @@ class TestProductionIntake:
             },
             headers=auth_headers,
         )
-        other_headers = {"X-User-Id": "other-user"}
+        other_headers = {
+            "X-User-Id": "other-user",
+            "X-Organization-Id": "default",
+            "X-Internal-Token": TEST_INTERNAL_TOKEN,
+        }
         client.post(
             "/productions/",
             json={
@@ -232,7 +246,11 @@ class TestProductionIntake:
         )
         production_id = create_response.json()["id"]
 
-        other_headers = {"X-User-Id": "other-user"}
+        other_headers = {
+            "X-User-Id": "other-user",
+            "X-Organization-Id": "default",
+            "X-Internal-Token": TEST_INTERNAL_TOKEN,
+        }
         response = client.get(f"/productions/{production_id}", headers=other_headers)
         assert response.status_code == 404
 

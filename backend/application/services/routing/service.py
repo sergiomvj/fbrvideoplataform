@@ -17,9 +17,15 @@ logger = get_logger(__name__)
 
 
 class RoutingService:
+    MIN_REVIEW_SCORE_THRESHOLD = 60.0
+
     def __init__(self):
         self._requery_workflow = requery_workflow
         self._review_queue: dict[UUID, ReviewQueueItem] = {}
+        self._query_builder = None
+
+    def set_query_builder(self, query_builder) -> None:
+        self._query_builder = query_builder
 
     def route_verification_result(
         self,
@@ -33,6 +39,15 @@ class RoutingService:
             asset_id=result.candidate_id.hex,
         ):
             decision = result.decision
+
+            if result.score < self.MIN_REVIEW_SCORE_THRESHOLD:
+                logger.info(
+                    "score_below_threshold",
+                    score=result.score,
+                    threshold=self.MIN_REVIEW_SCORE_THRESHOLD,
+                    candidate_id=result.candidate_id.hex,
+                )
+                return self._handle_requery(result)
 
             if decision == OperationalDecision.REQUERY_NEEDED:
                 return self._handle_requery(result)

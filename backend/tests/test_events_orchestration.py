@@ -1,3 +1,4 @@
+import os
 import pytest
 from datetime import datetime, timezone
 from uuid import uuid4
@@ -305,22 +306,21 @@ class TestOpenClawWebhookPayload:
             assert payload.summary != et
 
 
-class TestEventEmissionOnProductionCreation:
-    def test_emit_production_created_event(self) -> None:
-        from fastapi.testclient import TestClient
-        from main import app
-        from api.routes.productions import _productions_store
+AUTH_HEADERS = {
+    "X-User-Id": "test-user-001",
+    "X-Organization-Id": "default",
+    "X-Internal-Token": "test-internal-token-12345",
+}
 
-        _productions_store.clear()
+
+class TestEventEmissionOnProductionCreation:
+    def test_emit_production_created_event(self, client) -> None:
         collected: list[DomainEvent] = []
 
         async def collector(event: DomainEvent) -> None:
             collected.append(event)
 
         _event_bus.subscribe(PRODUCTION_CREATED, collector)
-
-        client = TestClient(app)
-        auth_headers = {"X-User-Id": "test-user-001"}
 
         response = client.post(
             "/productions/",
@@ -330,7 +330,7 @@ class TestEventEmissionOnProductionCreation:
                 "variation_id": "1",
                 "mode": "automatic",
             },
-            headers=auth_headers,
+            headers=AUTH_HEADERS,
         )
         assert response.status_code == 201
 
@@ -339,16 +339,7 @@ class TestEventEmissionOnProductionCreation:
         assert len(created_events) >= 1
         assert created_events[0].payload["title"] == "Event Test Production"
 
-    def test_manual_event_emit_endpoint(self) -> None:
-        from fastapi.testclient import TestClient
-        from main import app
-        from api.routes.productions import _productions_store
-
-        _productions_store.clear()
-
-        client = TestClient(app)
-        auth_headers = {"X-User-Id": "test-user-001"}
-
+    def test_manual_event_emit_endpoint(self, client) -> None:
         create_resp = client.post(
             "/productions/",
             json={
@@ -357,7 +348,7 @@ class TestEventEmissionOnProductionCreation:
                 "variation_id": "1",
                 "mode": "automatic",
             },
-            headers=auth_headers,
+            headers=AUTH_HEADERS,
         )
         production_id = create_resp.json()["id"]
 
@@ -367,7 +358,7 @@ class TestEventEmissionOnProductionCreation:
                 "event_type": "production.human_review_required",
                 "payload": {"reason": "manual test"},
             },
-            headers=auth_headers,
+            headers=AUTH_HEADERS,
         )
         assert emit_resp.status_code == 200
         data = emit_resp.json()
@@ -376,16 +367,7 @@ class TestEventEmissionOnProductionCreation:
         assert data["notification"] is not None
         assert data["notification"]["severity"] == "warning"
 
-    def test_manual_event_emit_non_relevant_returns_none_notification(self) -> None:
-        from fastapi.testclient import TestClient
-        from main import app
-        from api.routes.productions import _productions_store
-
-        _productions_store.clear()
-
-        client = TestClient(app)
-        auth_headers = {"X-User-Id": "test-user-001"}
-
+    def test_manual_event_emit_non_relevant_returns_none_notification(self, client) -> None:
         create_resp = client.post(
             "/productions/",
             json={
@@ -394,7 +376,7 @@ class TestEventEmissionOnProductionCreation:
                 "variation_id": "1",
                 "mode": "automatic",
             },
-            headers=auth_headers,
+            headers=AUTH_HEADERS,
         )
         production_id = create_resp.json()["id"]
 
@@ -404,28 +386,19 @@ class TestEventEmissionOnProductionCreation:
                 "event_type": "production.media_sourced",
                 "payload": {},
             },
-            headers=auth_headers,
+            headers=AUTH_HEADERS,
         )
         assert emit_resp.status_code == 200
         data = emit_resp.json()
         assert data["notification"] is None
 
-    def test_emit_event_nonexistent_production(self) -> None:
-        from fastapi.testclient import TestClient
-        from main import app
-        from api.routes.productions import _productions_store
-
-        _productions_store.clear()
-
-        client = TestClient(app)
-        auth_headers = {"X-User-Id": "test-user-001"}
-
+    def test_emit_event_nonexistent_production(self, client) -> None:
         emit_resp = client.post(
             "/productions/nonexistent-id/events",
             json={
                 "event_type": "production.failed",
                 "payload": {},
             },
-            headers=auth_headers,
+            headers=AUTH_HEADERS,
         )
         assert emit_resp.status_code == 404

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from domain.composition.models import CompositionTimeline
-from domain.render.models import RenderJob, RenderJobStatus, render_job_store
+from domain.render.models import RenderJob, RenderJobStatus
 
 
 class HeyGenAdapter:
@@ -21,7 +21,6 @@ class HeyGenAdapter:
             provider="heygen",
             status=RenderJobStatus.QUEUED,
         )
-        await render_job_store.add(job)
         return job
 
     def _presenter_short_payload(self, composition: CompositionTimeline) -> dict:

@@ -1,62 +1,122 @@
 from __future__ import annotations
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from uuid import UUID
 
 from application.errors import AppError
 from application.security.auth import CurrentUser
-from domain.human_review.models import review_queue
+from api.schemas.review import ReviewQueueItemResponse, ReviewListResponse
+from domain.human_review.models import ReviewQueueItem
+from infrastructure.db.session import async_session
+from infrastructure.db.review_repository import ReviewRepository
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/review", tags=["review"])
 
 
-@router.get("/{production_id}")
+async def _get_repo(session: AsyncSession = Depends(async_session)) -> ReviewRepository:
+    return ReviewRepository(session)
+
+
+def _item_to_response(item: ReviewQueueItem, index: int = 0) -> ReviewQueueItemResponse:
+    scene_label = f"Scene {index}"
+    score = 0.0
+    justification = ""
+    decision = "human_review"
+    asset_url = ""
+    asset_type = ""
+    source = ""
+    preview_url = ""
+
+    if hasattr(item, "candidate_data") and isinstance(item.candidate_data, dict):
+        asset_url = item.candidate_data.get("asset_url", "")
+        asset_type = item.candidate_data.get("asset_type", "")
+        source = item.candidate_data.get("source", "")
+        preview_url = item.candidate_data.get("preview_url", "")
+
+    if hasattr(item, "brief_data") and isinstance(item.brief_data, dict):
+        label = item.brief_data.get("scene_label", "")
+        if label:
+            scene_label = label
+        idx = item.brief_data.get("scene_index")
+        if idx is not None:
+            index = idx
+
+    if hasattr(item, "score"):
+        score = float(item.score)
+
+    if hasattr(item, "rationale"):
+        justification = item.rationale or ""
+
+    if hasattr(item, "status"):
+        status_val = item.status
+        if hasattr(status_val, "value"):
+            status_val = status_val.value
+        decision = str(status_val)
+
+    return ReviewQueueItemResponse(
+        id=str(item.id),
+        production_id=str(item.production_id),
+        scene_id=str(item.scene_id),
+        scene_index=index,
+        scene_label=scene_label,
+        asset_id=str(getattr(item, "asset_id", getattr(item, "candidate_id", item.id))),
+        asset_url=asset_url,
+        asset_type=asset_type,
+        source=source,
+        score=score,
+        justification=justification,
+        decision=decision,
+        status=str(item.status) if not hasattr(item.status, "value") else item.status.value,
+        preview_url=preview_url,
+    )
+
+
+@router.get("/{production_id}", response_model=ReviewListResponse)
 async def list_pending_reviews(
     production_id: str,
     user: CurrentUser,
-) -> dict:
-    items = await review_queue.get_pending(UUID(production_id))
-    return {
-        "production_id": production_id,
-        "items": [
-            {
-                "id": str(i.id),
-                "scene_id": str(i.scene_id),
-                "asset_id": str(i.asset_id),
-                "status": i.status,
-            }
-            for i in items
-        ],
-    }
+    repo: ReviewRepository = Depends(_get_repo),
+) -> ReviewListResponse:
+    items = await repo.get_pending(UUID(production_id))
+    responses = [_item_to_response(item, idx) for idx, item in enumerate(items)]
+    return ReviewListResponse(items=responses, total_count=len(responses))
 
 
-@router.post("/{production_id}/{item_id}/approve")
+@router.post("/{production_id}/{item_id}/approve", response_model=ReviewQueueItemResponse)
 async def approve_review_item(
     production_id: str,
     item_id: str,
     user: CurrentUser,
-) -> dict:
-    item = await review_queue.approve(UUID(item_id))
+    repo: ReviewRepository = Depends(_get_repo),
+) -> ReviewQueueItemResponse:
+    item = await repo.update_status(UUID(item_id), "approved", reviewed_by=user.user_id)
     if not item:
         raise AppError(message="Review item not found", status_code=404)
-    return {
-        "id": str(item.id),
-        "production_id": str(item.production_id),
-        "status": item.status,
-    }
+    return _item_to_response(item)
 
 
-@router.post("/{production_id}/{item_id}/reject")
+@router.post("/{production_id}/{item_id}/reject", response_model=ReviewQueueItemResponse)
 async def reject_review_item(
     production_id: str,
     item_id: str,
     user: CurrentUser,
-) -> dict:
-    item = await review_queue.reject(UUID(item_id))
+    repo: ReviewRepository = Depends(_get_repo),
+) -> ReviewQueueItemResponse:
+    item = await repo.update_status(UUID(item_id), "rejected", reviewed_by=user.user_id)
     if not item:
         raise AppError(message="Review item not found", status_code=404)
-    return {
-        "id": str(item.id),
-        "production_id": str(item.production_id),
-        "status": item.status,
-    }
+    return _item_to_response(item)
+
+
+@router.post("/{production_id}/{item_id}/requery", response_model=ReviewQueueItemResponse)
+async def requery_review_item(
+    production_id: str,
+    item_id: str,
+    user: CurrentUser,
+    repo: ReviewRepository = Depends(_get_repo),
+) -> ReviewQueueItemResponse:
+    item = await repo.update_status(UUID(item_id), "requeried", reviewed_by=user.user_id)
+    if not item:
+        raise AppError(message="Review item not found", status_code=404)
+    return _item_to_response(item)

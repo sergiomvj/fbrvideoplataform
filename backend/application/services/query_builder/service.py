@@ -19,6 +19,10 @@ class QueryBuilderService:
 
     def __init__(self):
         self._attempts: dict[UUID, QueryAttempt] = {}
+        self._repository = None
+
+    def set_repository(self, repository) -> None:
+        self._repository = repository
 
     def build_strategy_from_brief(self, brief: VisualBrief) -> QueryStrategy:
         keywords = []
@@ -66,7 +70,7 @@ class QueryBuilderService:
             return "square"
         return "landscape"
 
-    def create_attempt(
+    async def create_attempt(
         self,
         production_id: UUID,
         scene_id: UUID,
@@ -90,6 +94,9 @@ class QueryBuilderService:
 
         self._attempts[attempt.id] = attempt
 
+        if self._repository:
+            await self._repository.save(attempt)
+
         logger.info(
             "query_attempt_created",
             attempt_id=attempt.id.hex,
@@ -101,7 +108,7 @@ class QueryBuilderService:
 
         return attempt
 
-    def record_attempt_result(
+    async def record_attempt_result(
         self,
         attempt_id: UUID,
         candidate_count: int,
@@ -119,6 +126,13 @@ class QueryBuilderService:
         import datetime
 
         attempt.completed_at = datetime.datetime.utcnow()
+
+        if self._repository:
+            await self._repository.update_result(
+                attempt_id, candidate_count,
+                diagnostic.value if diagnostic else None,
+                diagnostic_details,
+            )
 
         logger.info(
             "query_attempt_completed",
@@ -147,7 +161,7 @@ class QueryBuilderService:
             and attempt.attempt_number >= 2
         )
 
-    def create_reformulation(
+    async def create_reformulation(
         self,
         attempt: QueryAttempt,
         reason: str,
@@ -161,11 +175,29 @@ class QueryBuilderService:
             reason=reason,
         )
 
-        return QueryReformulation(
+        reformulation = QueryReformulation(
             original_attempt=attempt,
             reformulated_strategy=reformulated_strategy,
             reformulation_reason=reason,
         )
+
+        new_attempt = await self.create_attempt(
+            production_id=attempt.production_id,
+            scene_id=attempt.scene_id,
+            brief_id=attempt.brief_id,
+            strategy=reformulated_strategy,
+            provider_key=attempt.provider_key,
+            query_params=attempt.query_params,
+        )
+
+        if self._repository:
+            await self._repository.save(
+                new_attempt,
+                parent_attempt_id=str(attempt.id),
+                reformulation_reason=reason,
+            )
+
+        return reformulation
 
     def _reformulate_strategy(
         self, original: QueryStrategy, diagnostic: Optional[DiagnosticCategory]
@@ -210,18 +242,34 @@ class QueryBuilderService:
             if a.production_id == production_id and a.scene_id == scene_id
         ]
 
-    def get_attempts_for_production(
+    async def get_attempts_for_production(
         self, production_id: UUID
     ) -> list[QueryAttempt]:
+        if self._repository:
+            return await self._repository.get_by_production(production_id)
         return [a for a in self._attempts.values() if a.production_id == production_id]
 
-    def get_latest_attempt(
+    async def get_latest_attempt(
         self, production_id: UUID, scene_id: UUID
     ) -> Optional[QueryAttempt]:
+        if self._repository:
+            return await self._repository.get_latest_for_scene(production_id, scene_id)
         attempts = self._get_attempts_for_scene(production_id, scene_id)
         if not attempts:
             return None
         return max(attempts, key=lambda a: a.attempt_number)
+
+    def is_eligible_for_review(self, attempt: QueryAttempt) -> bool:
+        if attempt.candidate_count == 0:
+            return False
+        if attempt.diagnostic is not None:
+            return False
+        return True
+
+    async def get_reformulation_chain(self, attempt_id: UUID) -> list[QueryAttempt]:
+        if self._repository:
+            return await self._repository.get_reformulation_chain(attempt_id)
+        return []
 
 
 query_builder_service = QueryBuilderService()
