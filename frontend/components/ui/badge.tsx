@@ -31,6 +31,7 @@ const Badge = forwardRef<HTMLSpanElement, BadgeProps>(
     );
   }
 );
+Badge.displayName = "Badge";
 
 Badge.displayName = "Badge";
 

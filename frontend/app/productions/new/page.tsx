@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { WizardProvider, useWizard } from "@/components/production-wizard/wizard-state";
@@ -8,10 +8,98 @@ import { ModeStep } from "@/components/production-wizard/mode-step";
 import { TemplateStep } from "@/components/production-wizard/template-step";
 import { VariationStep } from "@/components/production-wizard/variation-step";
 import { ContentStep } from "@/components/production-wizard/content-step";
+import { AssetBindingStep } from "@/components/production-wizard/asset-binding-step";
 
-const STEPS = ["Mode", "Template", "Variation", "Content"] as const;
+const BASE_STEPS = ["Mode", "Template", "Variation", "Content"] as const;
+const MANUAL_STEPS = [...BASE_STEPS, "Asset Binding"] as const;
+
+type StepLabel = (typeof MANUAL_STEPS)[number];
 
 type SubmitStatus = "idle" | "submitting" | "success" | "error";
+
+function LoginForm({ onLoginSuccess }: { onLoginSuccess: () => void }) {
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      const res = await fetch("/api/auth/session", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ username, password }),
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        setError(body.error || "Login failed");
+        return;
+      }
+
+      onLoginSuccess();
+    } catch {
+      setError("Login failed");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  return (
+    <div className="mx-auto max-w-sm py-16 space-y-6">
+      <div className="text-center">
+        <h1 className="text-2xl font-bold text-gray-900">Authentication Required</h1>
+        <p className="text-sm text-gray-500 mt-2">Please log in first.</p>
+      </div>
+
+      <Card className="p-6">
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-1">
+              Username
+            </label>
+            <input
+              id="username"
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              required
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-1">
+              Password
+            </label>
+            <input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              className="w-full rounded-md border border-gray-300 px-3 py-2 text-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+          </div>
+
+          {error && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+              {error}
+            </div>
+          )}
+
+          <Button type="submit" disabled={loading} className="w-full">
+            {loading ? "Logging in..." : "Log In"}
+          </Button>
+        </form>
+      </Card>
+    </div>
+  );
+}
 
 function WizardContent() {
   const { data } = useWizard();
@@ -19,14 +107,38 @@ function WizardContent() {
   const [submitStatus, setSubmitStatus] = useState<SubmitStatus>("idle");
   const [errorMessage, setErrorMessage] = useState("");
   const [productionId, setProductionId] = useState<string | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
 
-  async function handleLogin() {
-    const res = await fetch("/api/auth/session", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ userId: "current-user" }),
-    });
-    if (!res.ok) throw new Error("Login failed");
+  const isManual = data.mode === "manual";
+  const steps: readonly StepLabel[] = isManual ? MANUAL_STEPS : BASE_STEPS;
+
+  useEffect(() => {
+    async function checkSession() {
+      try {
+        const res = await fetch("/api/auth/session", { method: "GET" });
+        if (res.ok) {
+          const body = await res.json();
+          setIsAuthenticated(body.isLoggedIn === true);
+        } else {
+          setIsAuthenticated(false);
+        }
+      } catch {
+        setIsAuthenticated(false);
+      }
+    }
+    checkSession();
+  }, []);
+
+  if (isAuthenticated === null) {
+    return (
+      <div className="mx-auto max-w-3xl py-16 text-center text-sm text-gray-500">
+        Checking authentication...
+      </div>
+    );
+  }
+
+  if (!isAuthenticated) {
+    return <LoginForm onLoginSuccess={() => setIsAuthenticated(true)} />;
   }
 
   async function handleSubmit() {
@@ -34,8 +146,6 @@ function WizardContent() {
     setErrorMessage("");
 
     try {
-      await handleLogin();
-
       const payload = {
         title: data.title,
         template_type_id: data.template?.id,
@@ -58,7 +168,34 @@ function WizardContent() {
       }
 
       const result = await res.json();
-      setProductionId(result.id ?? result.production_id ?? "unknown");
+      const pid = result.id ?? result.production_id ?? "unknown";
+      setProductionId(pid);
+
+      if (isManual && data.bindings.length > 0) {
+        for (const binding of data.bindings) {
+          if (!binding.assetReference.trim()) continue;
+          const restrictions = binding.restrictions
+            .split(",")
+            .map((s) => s.trim())
+            .filter((s) => s.length > 0);
+          const bindingRes = await fetch(`/api/productions/${pid}/bindings`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              production_id: pid,
+              scene_index: binding.sceneIndex,
+              asset_reference: binding.assetReference,
+              asset_type: binding.assetType,
+              restrictions,
+            }),
+          });
+          if (!bindingRes.ok) {
+            const body = await bindingRes.json().catch(() => ({}));
+            throw new Error(body.error || `Binding failed with status ${bindingRes.status}`);
+          }
+        }
+      }
+
       setSubmitStatus("success");
     } catch (err) {
       setErrorMessage(err instanceof Error ? err.message : "An unexpected error occurred");
@@ -67,22 +204,24 @@ function WizardContent() {
   }
 
   function canGoNext(): boolean {
-    switch (currentStep) {
-      case 0:
+    switch (steps[currentStep]) {
+      case "Mode":
         return data.mode !== null;
-      case 1:
+      case "Template":
         return data.template !== null;
-      case 2:
+      case "Variation":
         return true;
-      case 3:
+      case "Content":
         return data.title.trim().length > 0;
+      case "Asset Binding":
+        return true;
       default:
         return false;
     }
   }
 
   function goNext() {
-    if (currentStep < STEPS.length - 1 && canGoNext()) {
+    if (currentStep < steps.length - 1 && canGoNext()) {
       setCurrentStep((s) => s + 1);
     }
   }
@@ -127,7 +266,7 @@ function WizardContent() {
 
       <nav aria-label="Progress">
         <ol className="flex items-center gap-2">
-          {STEPS.map((label, idx) => (
+          {steps.map((label, idx) => (
             <li key={label} className="flex items-center gap-2">
               <div
                 className={`flex items-center gap-2 rounded-full px-3 py-1 text-xs font-medium transition-colors ${
@@ -149,7 +288,7 @@ function WizardContent() {
                 </span>
                 {label}
               </div>
-              {idx < STEPS.length - 1 && (
+              {idx < steps.length - 1 && (
                 <div className={`h-0.5 w-6 ${idx < currentStep ? "bg-blue-400" : "bg-gray-200"}`} />
               )}
             </li>
@@ -158,10 +297,11 @@ function WizardContent() {
       </nav>
 
       <Card className="p-6">
-        {currentStep === 0 && <ModeStep />}
-        {currentStep === 1 && <TemplateStep />}
-        {currentStep === 2 && <VariationStep />}
-        {currentStep === 3 && <ContentStep />}
+        {steps[currentStep] === "Mode" && <ModeStep />}
+        {steps[currentStep] === "Template" && <TemplateStep />}
+        {steps[currentStep] === "Variation" && <VariationStep />}
+        {steps[currentStep] === "Content" && <ContentStep />}
+        {steps[currentStep] === "Asset Binding" && <AssetBindingStep />}
       </Card>
 
       {submitStatus === "error" && (
@@ -179,7 +319,7 @@ function WizardContent() {
           Back
         </Button>
 
-        {currentStep < STEPS.length - 1 ? (
+        {currentStep < steps.length - 1 ? (
           <Button onClick={goNext} disabled={!canGoNext()}>
             Next
           </Button>

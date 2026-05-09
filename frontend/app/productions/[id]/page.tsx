@@ -9,22 +9,56 @@ import { CompositionPreview } from "@/components/production-detail/composition-p
 import { RenderStatus } from "@/components/production-detail/render-status";
 import type { StateVariant } from "@/lib/design-system/tokens";
 
-interface ProductionData {
+interface StateHistoryEntry {
+  from_state: string | null;
+  to_state: string;
+  occurred_at: string;
+  reason: string;
+  triggered_by: string;
+}
+
+interface CompositionSlot {
+  slot_index: number;
+  slot_type: string;
+  duration_seconds: number;
+  content_reference: string;
+  asset_url: string | null;
+}
+
+interface CompositionSummary {
+  id: string;
+  template_type_id: string;
+  variation_id: string;
+  total_duration_seconds: number;
+  slots: CompositionSlot[];
+}
+
+interface RenderJobSummary {
+  id: string;
+  status: string;
+  provider: string;
+  created_at: string;
+  updated_at: string;
+  error_message: string | null;
+}
+
+interface ProductionDetail {
   id: string;
   title: string;
   mode: string;
-  template_name: string;
-  variation_name?: string | null;
-  state: string;
-  state_history: Array<{ state: string; entered_at: string; variant?: StateVariant }>;
-  composition_slots: Array<{ slot_type: string; duration: number; content: string }>;
-  render_job: {
-    id: string;
-    status: string;
-    progress: number;
-    output_url?: string | null;
-    error_message?: string | null;
-  } | null;
+  template_type_id: string;
+  variation_id: string;
+  current_state: string;
+  base_content: string;
+  editorial_context: string;
+  restrictions: string[];
+  created_at: string;
+  updated_at: string;
+  operator_user_id: string;
+  organization_id: string;
+  state_history: StateHistoryEntry[];
+  composition: CompositionSummary | null;
+  render_job: RenderJobSummary | null;
 }
 
 function inferStateVariant(state: string): StateVariant {
@@ -37,7 +71,7 @@ function inferStateVariant(state: string): StateVariant {
 
 export default function ProductionDetailPage() {
   const params = useParams<{ id: string }>();
-  const [production, setProduction] = useState<ProductionData | null>(null);
+  const [production, setProduction] = useState<ProductionDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
@@ -80,16 +114,16 @@ export default function ProductionDetailPage() {
     );
   }
 
-  const stateVariant = inferStateVariant(production.state);
+  const stateVariant = inferStateVariant(production.current_state);
 
   return (
     <div className="space-y-6">
       <ProductionHeader
         title={production.title}
         mode={production.mode}
-        templateName={production.template_name}
-        variationName={production.variation_name}
-        state={production.state}
+        templateTypeId={production.template_type_id}
+        variationId={production.variation_id}
+        currentState={production.current_state}
         stateVariant={stateVariant}
       />
 
@@ -106,7 +140,7 @@ export default function ProductionDetailPage() {
         <RenderStatus job={production.render_job} />
       </div>
 
-      <CompositionPreview slots={production.composition_slots ?? []} />
+      <CompositionPreview composition={production.composition} />
     </div>
   );
 }

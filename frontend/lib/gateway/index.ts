@@ -2,6 +2,7 @@ import { getSession, SessionData } from "@/lib/session";
 import { NextRequest, NextResponse } from "next/server";
 
 const BACKEND_URL = process.env.BACKEND_URL || "http://localhost:8000";
+const INTERNAL_TOKEN = process.env.INTERNAL_TOKEN || "";
 
 interface GatewayOptions {
   requireAuth?: boolean;
@@ -9,6 +10,7 @@ interface GatewayOptions {
 
 interface AuthenticatedContext {
   userId: string;
+  organizationId: string;
 }
 
 function createSafeErrorResponse(message: string, status: number): NextResponse {
@@ -21,7 +23,10 @@ export async function extractAuthenticatedUser(
   if (!session.isLoggedIn || !session.userId) {
     return null;
   }
-  return { userId: session.userId };
+  return {
+    userId: session.userId,
+    organizationId: (session as unknown as SessionData).organizationId || "default",
+  };
 }
 
 export async function withAuth(
@@ -61,8 +66,13 @@ export async function proxyToBackend(
     "Content-Type": "application/json",
   };
 
+  if (INTERNAL_TOKEN) {
+    headers["X-Internal-Token"] = INTERNAL_TOKEN;
+  }
+
   if (authContext) {
     headers["X-User-Id"] = authContext.userId;
+    headers["X-Organization-Id"] = authContext.organizationId;
   }
 
   try {

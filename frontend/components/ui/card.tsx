@@ -1,6 +1,6 @@
 import { type HTMLAttributes, forwardRef } from "react";
 
-interface CardProps extends HTMLAttributes<HTMLDivElement> {}
+type CardProps = HTMLAttributes<HTMLDivElement>;
 
 const Card = forwardRef<HTMLDivElement, CardProps>(
   ({ className = "", ...props }, ref) => {
@@ -17,6 +17,7 @@ const Card = forwardRef<HTMLDivElement, CardProps>(
   }
 );
 Card.displayName = "Card";
+Card.displayName = "Card";
 
 const CardHeader = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className = "", ...props }, ref) => {
@@ -29,6 +30,7 @@ const CardHeader = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
     );
   }
 );
+CardHeader.displayName = "CardHeader";
 CardHeader.displayName = "CardHeader";
 
 const CardTitle = forwardRef<HTMLHeadingElement, HTMLAttributes<HTMLHeadingElement>>(
@@ -43,6 +45,7 @@ const CardTitle = forwardRef<HTMLHeadingElement, HTMLAttributes<HTMLHeadingEleme
   }
 );
 CardTitle.displayName = "CardTitle";
+CardTitle.displayName = "CardTitle";
 
 const CardDescription = forwardRef<HTMLParagraphElement, HTMLAttributes<HTMLParagraphElement>>(
   ({ className = "", ...props }, ref) => {
@@ -56,6 +59,7 @@ const CardDescription = forwardRef<HTMLParagraphElement, HTMLAttributes<HTMLPara
   }
 );
 CardDescription.displayName = "CardDescription";
+CardDescription.displayName = "CardDescription";
 
 const CardContent = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
   ({ className = "", ...props }, ref) => {
@@ -64,6 +68,7 @@ const CardContent = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
     );
   }
 );
+CardContent.displayName = "CardContent";
 CardContent.displayName = "CardContent";
 
 const CardFooter = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
@@ -77,6 +82,7 @@ const CardFooter = forwardRef<HTMLDivElement, HTMLAttributes<HTMLDivElement>>(
     );
   }
 );
+CardFooter.displayName = "CardFooter";
 CardFooter.displayName = "CardFooter";
 
 export {

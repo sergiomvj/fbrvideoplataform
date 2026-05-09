@@ -17,6 +17,13 @@ export interface Variation {
   description?: string;
 }
 
+export interface BindingEntry {
+  sceneIndex: number;
+  assetReference: string;
+  assetType: string;
+  restrictions: string;
+}
+
 export interface WizardData {
   mode: ProductionMode | null;
   template: Template | null;
@@ -25,6 +32,7 @@ export interface WizardData {
   base_content: string;
   editorial_context: string;
   restrictions: string;
+  bindings: BindingEntry[];
 }
 
 interface WizardContextValue {
@@ -40,6 +48,7 @@ const initialData: WizardData = {
   base_content: "",
   editorial_context: "",
   restrictions: "",
+  bindings: [],
 };
 
 const WizardContext = createContext<WizardContextValue | null>(null);

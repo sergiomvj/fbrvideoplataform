@@ -3,9 +3,11 @@
 import type { StateVariant } from "@/lib/design-system/tokens";
 
 interface StateEntry {
-  state: string;
-  entered_at: string;
-  variant?: StateVariant;
+  from_state: string | null;
+  to_state: string;
+  occurred_at: string;
+  reason: string;
+  triggered_by: string;
 }
 
 interface StateTimelineProps {
@@ -54,11 +56,11 @@ export function StateTimeline({ entries }: StateTimelineProps) {
   return (
     <div className="relative flex flex-col">
       {entries.map((entry, idx) => {
-        const variant = entry.variant ?? inferVariant(entry.state);
+        const variant = inferVariant(entry.to_state);
         const isLast = idx === entries.length - 1;
 
         return (
-          <div key={`${entry.state}-${entry.entered_at}-${idx}`} className="relative flex gap-4 pb-6 last:pb-0">
+          <div key={`${entry.to_state}-${entry.occurred_at}-${idx}`} className="relative flex gap-4 pb-6 last:pb-0">
             <div className="flex flex-col items-center">
               <div className={`h-3 w-3 shrink-0 rounded-full ${dotColors[variant]}`} />
               {!isLast && (
@@ -66,8 +68,13 @@ export function StateTimeline({ entries }: StateTimelineProps) {
               )}
             </div>
             <div className="flex-1 pt-0">
-              <p className="text-sm font-medium text-gray-900">{entry.state}</p>
-              <p className="text-xs text-gray-500">{formatTimestamp(entry.entered_at)}</p>
+              <p className="text-sm font-medium text-gray-900">
+                {entry.from_state ? `${entry.from_state} → ${entry.to_state}` : entry.to_state}
+              </p>
+              <p className="text-xs text-gray-500">{formatTimestamp(entry.occurred_at)}</p>
+              {entry.reason && (
+                <p className="text-xs text-gray-400">{entry.reason}</p>
+              )}
             </div>
           </div>
         );

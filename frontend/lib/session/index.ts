@@ -4,6 +4,7 @@ import { cookies } from "next/headers";
 export interface SessionData {
   userId: string;
   isLoggedIn: boolean;
+  organizationId: string;
 }
 
 const COOKIE_NAME = "synkra_session";
@@ -44,5 +45,6 @@ export function createEmptySession(): SessionData {
   return {
     userId: "",
     isLoggedIn: false,
+    organizationId: "",
   };
 }

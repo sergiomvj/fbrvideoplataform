@@ -1,30 +1,32 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
+import { Suspense, useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
+import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { ReviewItem, type ReviewItemData } from "@/components/review-queue/review-item";
 
-type ReviewStatus = "pending" | "approved" | "rejected";
+function ReviewPageContent() {
+  const searchParams = useSearchParams();
+  const productionId = searchParams.get("production_id") ?? "";
 
-export default function ReviewPage() {
   const [items, setItems] = useState<ReviewItemData[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [processingId, setProcessingId] = useState<string | null>(null);
-  const [productionId, setProductionId] = useState<string | null>(null);
 
   useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const pid = params.get("production_id");
-    setProductionId(pid);
+    if (!productionId) {
+      setLoading(false);
+      setError("Missing production_id query parameter");
+      return;
+    }
 
     async function fetchQueue() {
       setLoading(true);
       setError(null);
       try {
-        const url = pid ? `/api/review/${pid}` : "/api/review";
-        const res = await fetch(url);
+        const res = await fetch(`/api/review/${productionId}`);
         if (!res.ok) throw new Error(`Failed to load review queue (${res.status})`);
         const data = await res.json();
         setItems(Array.isArray(data) ? data : data.items ?? []);
@@ -36,29 +38,23 @@ export default function ReviewPage() {
     }
 
     fetchQueue();
-  }, []);
+  }, [productionId]);
 
   async function handleAction(id: string, action: "approve" | "reject" | "requery") {
     setProcessingId(id);
     try {
-      const res = await fetch(`/api/review/${id}/${action}`, { method: "POST" });
+      const res = await fetch(`/api/review/${productionId}/${id}/${action}`, { method: "POST" });
       if (!res.ok) throw new Error(`Action failed (${res.status})`);
+      const updated = await res.json();
       setItems((prev) =>
-        prev.map((item) => {
-          if (item.id !== id) return item;
-          const nextStatus: Record<string, ReviewStatus> = {
-            approve: "approved",
-            reject: "rejected",
-            requery: "pending",
-          };
-          return { ...item, status: nextStatus[action] ?? item.status };
-        })
+        prev.map((item) => (item.id === id ? { ...item, ...updated } : item))
       );
-    } catch {
-      setError("Failed to process action");
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to process action");
     } finally {
       setProcessingId(null);
     }
+  }
   }
 
   const pendingCount = items.filter((i) => i.status === "pending").length;
@@ -69,11 +65,9 @@ export default function ReviewPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">Review Queue</h1>
-          {productionId && (
-            <p className="text-sm text-gray-500 mt-1">
-              Production: {productionId}
-            </p>
-          )}
+          <p className="text-sm text-gray-500 mt-1">
+            Review and approve or reject queued items
+          </p>
         </div>
         <div className="flex items-center gap-3">
           <Badge variant="warning">{pendingCount} Pending</Badge>
@@ -95,7 +89,7 @@ export default function ReviewPage() {
         </div>
       )}
 
-      {!loading && items.length === 0 && (
+      {!loading && items.length === 0 && !error && (
         <Card>
           <CardContent className="py-12 text-center text-sm text-gray-500">
             No items in the review queue.
@@ -116,5 +110,21 @@ export default function ReviewPage() {
         ))}
       </div>
     </div>
+  );
+}
+
+export default function ReviewPage() {
+  return (
+    <Suspense
+      fallback={
+        <Card>
+          <CardContent className="py-12 text-center text-sm text-gray-500">
+            Loading...
+          </CardContent>
+        </Card>
+      }
+    >
+      <ReviewPageContent />
+    </Suspense>
   );
 }

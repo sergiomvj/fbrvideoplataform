@@ -7,19 +7,35 @@ interface ReviewActionsProps {
   onReject: () => void;
   onRequery: () => void;
   disabled?: boolean;
+  processing?: boolean;
 }
 
-export function ReviewActions({ onApprove, onReject, onRequery, disabled }: ReviewActionsProps) {
+export function ReviewActions({ onApprove, onReject, onRequery, disabled, processing }: ReviewActionsProps) {
   return (
-    <div className="flex items-center gap-2">
-      <Button variant="primary" size="sm" onClick={onApprove} disabled={disabled}>
-        Approve
+    <div className="flex gap-2">
+      <Button
+        onClick={onApprove}
+        disabled={disabled || processing}
+        variant="success"
+        size="sm"
+      >
+        {processing ? "Processing..." : "Approve"}
       </Button>
-      <Button variant="danger" size="sm" onClick={onReject} disabled={disabled}>
-        Reject
+      <Button
+        onClick={onReject}
+        disabled={disabled || processing}
+        variant="danger"
+        size="sm"
+      >
+        {processing ? "Processing..." : "Reject"}
       </Button>
-      <Button variant="secondary" size="sm" onClick={onRequery} disabled={disabled}>
-        Requery
+      <Button
+        onClick={onRequery}
+        disabled={disabled || processing}
+        variant="secondary"
+        size="sm"
+      >
+        {processing ? "Processing..." : "Requery"}
       </Button>
     </div>
   );

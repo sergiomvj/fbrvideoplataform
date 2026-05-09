@@ -1,6 +1,6 @@
 import { type HTMLAttributes, forwardRef } from "react";
 
-interface HeaderProps extends HTMLAttributes<HTMLElement> {}
+type HeaderProps = HTMLAttributes<HTMLElement>;
 
 const Header = forwardRef<HTMLElement, HeaderProps>(
   ({ className = "", ...props }, ref) => {

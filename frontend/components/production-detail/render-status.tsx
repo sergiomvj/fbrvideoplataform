@@ -4,16 +4,17 @@ import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { StatusIndicator } from "@/components/ui/status-indicator";
 import type { StateVariant } from "@/lib/design-system/tokens";
 
-interface RenderJob {
+interface RenderJobSummary {
   id: string;
   status: string;
-  progress: number;
-  output_url?: string | null;
-  error_message?: string | null;
+  provider: string;
+  created_at: string;
+  updated_at: string;
+  error_message: string | null;
 }
 
 interface RenderStatusProps {
-  job: RenderJob | null;
+  job: RenderJobSummary | null;
 }
 
 function mapRenderStatus(status: string): StateVariant {
@@ -33,7 +34,7 @@ export function RenderStatus({ job }: RenderStatusProps) {
           <CardTitle>Render Status</CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-sm text-gray-400">No render job found.</p>
+          <p className="text-sm text-gray-400">No render job.</p>
         </CardContent>
       </Card>
     );
@@ -56,34 +57,13 @@ export function RenderStatus({ job }: RenderStatusProps) {
       <CardContent>
         <div className="space-y-3">
           <div className="flex items-center justify-between text-sm">
-            <span className="text-gray-500">Progress</span>
-            <span className="font-medium text-gray-700">{job.progress}%</span>
+            <span className="text-gray-500">Provider</span>
+            <span className="font-medium text-gray-700">{job.provider}</span>
           </div>
-          <div className="h-2 w-full rounded-full bg-gray-100">
-            <div
-              className={`h-2 rounded-full transition-all ${
-                variant === "success"
-                  ? "bg-green-500"
-                  : variant === "danger"
-                    ? "bg-red-500"
-                    : "bg-amber-500"
-              }`}
-              style={{ width: `${Math.min(100, Math.max(0, job.progress))}%` }}
-            />
+          <div className="flex items-center justify-between text-sm">
+            <span className="text-gray-500">Created</span>
+            <span className="text-gray-600">{new Date(job.created_at).toLocaleString()}</span>
           </div>
-          {job.output_url && (
-            <a
-              href={job.output_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-sm font-medium text-blue-600 hover:text-blue-800"
-            >
-              View Output
-              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 6H5.25A2.25 2.25 0 003 8.25v10.5A2.25 2.25 0 005.25 21h10.5A2.25 2.25 0 0018 18.75V10.5m-4.5-4.5h6m0 0v6m0-6L9.75 14.25" />
-              </svg>
-            </a>
-          )}
           {job.error_message && (
             <p className="text-sm text-red-600">{job.error_message}</p>
           )}
