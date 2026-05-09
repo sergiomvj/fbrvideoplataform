@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card";
 import { ScoreBadge } from "./score-badge";
 import { ReviewActions } from "./review-actions";
@@ -47,10 +48,12 @@ export function ReviewItem({ item, onApprove, onReject, onRequery, processing }:
         <div className="flex gap-4">
           <div className="flex h-32 w-48 shrink-0 items-center justify-center rounded-lg border border-dashed border-gray-300 bg-gray-50 overflow-hidden">
             {item.preview_url ? (
-              <img
+              <Image
                 src={item.preview_url}
                 alt={`Preview for ${item.scene_label}`}
-                className="h-full w-full object-cover"
+                fill
+                className="object-cover"
+                unoptimized
               />
             ) : (
               <span className="text-xs text-gray-400">Asset Preview</span>

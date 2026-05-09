@@ -10,51 +10,45 @@ n8n is the orchestration platform that coordinates complex workflows involving m
 
 ### Event-Driven Workflows
 
-#### Production Lifecycle Workflow (`production-lifecycle.json`)
-- **Triggers**: `PRODUCTION_CREATED`, `PRODUCTION_STRUCTURED`, `PRODUCTION_VISUAL_PLANNED`
+#### Production Lifecycle Workflow
+- **Triggers**: `production.created`, `production.structured`, `production.visual_planned`
 - **Actions**: Notification routing, status updates, automated quality checks
 - **Payload Example**:
 ```json
 {
-  "event_type": "PRODUCTION_CREATED",
+  "event_type": "production.created",
   "production_id": "123e4567-e89b-12d3-a456-426614174000",
   "payload": {
     "title": "Sample Production",
-    "mode": "automatic",
-    "template_type_id": "basic_video"
+    "mode": "automatic"
   },
   "timestamp": "2026-05-09T12:00:00Z"
 }
 ```
 
-#### Media Processing Workflow (`media-processing.json`)
-- **Triggers**: `PRODUCTION_MEDIA_SOURCING`, `PRODUCTION_HUMAN_REVIEW_REQUIRED`
+#### Media Processing Workflow
+- **Triggers**: `production.media_sourced`, `production.human_review_required`
 - **Actions**: Asset validation, metadata enrichment, review queue population
 - **Payload Example**:
 ```json
 {
-  "event_type": "PRODUCTION_MEDIA_SOURCING",
+  "event_type": "production.media_sourced",
   "production_id": "123e4567-e89b-12d3-a456-426614174000",
   "payload": {
-    "scene_count": 3,
-    "required_assets": ["video", "image", "audio"]
+    "triggered_by": "user123"
   }
 }
 ```
 
-#### Render Pipeline Workflow (`render-pipeline.json`)
-- **Triggers**: `PRODUCTION_RENDER_COMPLETED`, `PRODUCTION_RENDER_FAILED`
+#### Render Pipeline Workflow
+- **Triggers**: `production.render_completed`, `production.render_failed`
 - **Actions**: Distribution, archiving, error recovery
 - **Payload Example**:
 ```json
 {
-  "event_type": "PRODUCTION_RENDER_COMPLETED",
+  "event_type": "production.render_completed",
   "production_id": "123e4567-e89b-12d3-a456-426614174000",
-  "payload": {
-    "render_url": "https://cdn.example.com/renders/prod123.mp4",
-    "duration_seconds": 120,
-    "file_size_mb": 45.2
-  }
+  "payload": {}
 }
 ```
 
@@ -69,7 +63,7 @@ n8n is the orchestration platform that coordinates complex workflows involving m
 - **Example Payload**:
 ```json
 {
-  "event_type": "PRODUCTION_HUMAN_REVIEW_REQUIRED",
+  "event_type": "production.human_review_required",
   "production_id": "123e4567-e89b-12d3-a456-426614174000",
   "context": {
     "scene_count": 5,
@@ -114,10 +108,7 @@ FBR_CLICK_WEBHOOK_URL=https://your-app.com/webhooks/fbr-click
 ### n8n Workflow Import
 
 1. Access your n8n instance admin panel
-2. Import workflows from this directory:
-   - `production-lifecycle.json`
-   - `media-processing.json`
-   - `render-pipeline.json`
+2. Configure workflows based on `workflow-registry.json` event mappings
 3. Configure webhook URLs to match your deployment
 4. Activate workflows
 

@@ -231,7 +231,7 @@ async def structure_production(
     production.transition_to(
         WorkflowState.VISUAL_PLANNING,
         reason="Structuring completed",
-        triggered_by=user.user.user_id,
+        triggered_by=user.user_id,
     )
 
     # Persist the structured narrative
@@ -275,20 +275,15 @@ async def plan_visual(
             status_code=400,
         )
 
-    # Check if structured narrative exists, otherwise recompute (temporary compatibility)
+    # Load persisted narrative - must exist from prior structuring step
     narr_repo = NarrativeRepository(session)
-    existing_narrative = await narr_repo.get_narrative(production.id)
+    narrative = await narr_repo.get_narrative(production.id)
 
-    if existing_narrative:
-        # Use persisted narrative
-        narrative = existing_narrative
-    else:
-        # Fallback: recompute narrative (should not happen in normal flow)
-        structuring_engine = StructuringEngine()
-        try:
-            narrative = await structuring_engine.structure(production)
-        except StructuringError as e:
-            raise AppError(message=e.message, status_code=422)
+    if not narrative:
+        raise AppError(
+            message="No structured narrative found. Run /structure first.",
+            status_code=400,
+        )
 
     template = get_template(narrative.template_type_id)
     if not template:
@@ -303,7 +298,7 @@ async def plan_visual(
     production.transition_to(
         WorkflowState.MEDIA_SOURCING,
         reason="Visual planning completed",
-        triggered_by=user.user.user_id,
+        triggered_by=user.user_id,
     )
 
     # Persist the visual briefs
@@ -314,7 +309,7 @@ async def plan_visual(
         DomainEvent(
             event_type=PRODUCTION_VISUAL_PLANNED,
             production_id=production.id,
-            payload={"triggered_by": user.user.user_id},
+            payload={"triggered_by": user.user_id},
             source="productions_route",
         )
     )

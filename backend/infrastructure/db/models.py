@@ -36,7 +36,17 @@ class NarrativeBlockModel(Base):
     production_id: Mapped[str] = mapped_column(
         String, ForeignKey("productions.id", ondelete="CASCADE"), nullable=False
     )
+    narrative_id: Mapped[str | None] = mapped_column(
+        String, ForeignKey("structured_narratives.id", ondelete="SET NULL"), nullable=True
+    )
     scene_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    role: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    text: Mapped[str | None] = mapped_column(Text, nullable=True)
+    estimated_duration_seconds: Mapped[float] = mapped_column(Float, nullable=True, default=0.0)
+
+    narrative: Mapped["StructuredNarrativeModel | None"] = relationship(
+        "StructuredNarrativeModel", back_populates="blocks"
+    )
 
 
 class ProductionModel(Base):
@@ -306,6 +316,117 @@ class RenderJobEventModel(Base):
 
     render_job: Mapped[RenderJobModel] = relationship(
         "RenderJobModel", back_populates="events"
+    )
+
+
+class StructuredNarrativeModel(Base):
+    __tablename__ = "structured_narratives"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid4())
+    )
+    production_id: Mapped[str] = mapped_column(
+        String, ForeignKey("productions.id", ondelete="CASCADE"), nullable=False
+    )
+    template_type_id: Mapped[str] = mapped_column(String(50), nullable=False)
+    variation_id: Mapped[str] = mapped_column(String(10), nullable=False)
+    objective: Mapped[str] = mapped_column(Text, nullable=False)
+    target_duration_seconds: Mapped[float] = mapped_column(Float, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now()
+    )
+
+    blocks: Mapped[list[NarrativeBlockModel]] = relationship(
+        "NarrativeBlockModel",
+        back_populates="narrative",
+        cascade="all, delete-orphan",
+        lazy="selectin",
+        order_by="NarrativeBlockModel.scene_index",
+        foreign_keys="[NarrativeBlockModel.narrative_id]",
+    )
+
+
+
+
+class VisualBriefModel(Base):
+    __tablename__ = "visual_briefs"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid4())
+    )
+    production_id: Mapped[str] = mapped_column(
+        String, ForeignKey("productions.id", ondelete="CASCADE"), nullable=False
+    )
+    scene_id: Mapped[str] = mapped_column(String, nullable=False)
+    scene_index: Mapped[int] = mapped_column(Integer, nullable=False)
+    tema: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    funcao_visual: Mapped[str] = mapped_column(String(30), nullable=False, default="contexto_ambiental")
+    assunto_visivel: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    contexto_geografico_cultural: Mapped[str] = mapped_column(Text, nullable=True, default="")
+    periodo: Mapped[str] = mapped_column(String(50), nullable=True, default="")
+    tom_editorial: Mapped[str] = mapped_column(String(50), nullable=True, default="")
+    nivel_literalidade: Mapped[str] = mapped_column(String(20), nullable=True, default="media")
+    permitidos: Mapped[str] = mapped_column(Text, nullable=True, default="[]")
+    proibidos: Mapped[str] = mapped_column(Text, nullable=True, default="[]")
+    tipo_ativo_preferido: Mapped[str] = mapped_column(String(20), nullable=True, default="any")
+    template_type_id: Mapped[str] = mapped_column(String(50), nullable=True, default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now()
+    )
+
+
+class MediaProviderModel(Base):
+    __tablename__ = "media_providers"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid4())
+    )
+    provider_key: Mapped[str] = mapped_column(String(50), nullable=False, unique=True)
+    provider_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    source_type: Mapped[str] = mapped_column(String(30), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="active")
+    display_name: Mapped[str] = mapped_column(String(100), nullable=False, default="")
+    description: Mapped[str] = mapped_column(Text, nullable=True, default="")
+    base_url: Mapped[str] = mapped_column(Text, nullable=True, default="")
+    api_version: Mapped[str] = mapped_column(String(10), nullable=True, default="v1")
+    auth_config: Mapped[str] = mapped_column(Text, nullable=True, default="{}")
+    operational_config: Mapped[str] = mapped_column(Text, nullable=True, default="{}")
+    rate_limit_per_minute: Mapped[int] = mapped_column(Integer, nullable=True, default=60)
+    timeout_seconds: Mapped[int] = mapped_column(Integer, nullable=True, default=30)
+    disabled_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now()
+    )
+
+
+class RenderSubmissionModel(Base):
+    __tablename__ = "render_submissions"
+
+    id: Mapped[str] = mapped_column(
+        String, primary_key=True, default=lambda: str(uuid4())
+    )
+    production_id: Mapped[str] = mapped_column(
+        String, ForeignKey("productions.id", ondelete="CASCADE"), nullable=False
+    )
+    provider: Mapped[str] = mapped_column(String(50), nullable=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="pending")
+    outcome: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    external_job_id: Mapped[str | None] = mapped_column(String, nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    failure_type: Mapped[str | None] = mapped_column(String(30), nullable=True)
+    payload_json: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    provider_response_json: Mapped[str] = mapped_column(Text, nullable=True, default="{}")
+    job_states_json: Mapped[str] = mapped_column(Text, nullable=True, default="[]")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now()
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now()
     )
 
 

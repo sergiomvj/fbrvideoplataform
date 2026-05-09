@@ -10,7 +10,7 @@
 
 A melhor arquitetura para este sistema, neste momento, é uma **arquitetura modular monolítica com orquestração externa**, organizada assim:
 
-- **Frontend web operacional** em `Next.js 15 + TypeScript + Tailwind + shadcn/ui`
+- **Frontend web operacional** em `Next.js 16 + TypeScript + Tailwind + shadcn/ui`
 - **Backend principal** em `FastAPI + Python 3.11+`
 - **Banco transacional** em `PostgreSQL 16`
 - **Cache, filas curtas e locks** em `Redis 7`

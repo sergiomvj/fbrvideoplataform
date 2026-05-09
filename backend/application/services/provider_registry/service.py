@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from uuid import UUID
 from typing import Optional
 
@@ -17,44 +19,74 @@ logger = get_logger(__name__)
 class ProviderRegistryService:
     def __init__(self):
         self._registry = provider_registry
-        self._initialize_default_providers()
+        self._repository = None
 
-    def _initialize_default_providers(self) -> None:
-        if not self._registry.list_all():
-            default_providers = [
-                MediaProvider(
-                    provider_key="pexels",
-                    provider_type=ProviderType.STOCK_IMAGE,
-                    source_type=ProviderSourceType.STOCK_AUTOMATIC,
-                    display_name="Pexels",
-                    description="Free stock photos and videos",
-                    base_url="https://api.pexels.com/v1",
-                    operational_config={"search_endpoint": "/search"},
-                ),
-                MediaProvider(
-                    provider_key="pixabay",
-                    provider_type=ProviderType.STOCK_IMAGE,
-                    source_type=ProviderSourceType.STOCK_AUTOMATIC,
-                    display_name="Pixabay",
-                    description="Free images and videos",
-                    base_url="https://pixabay.com/api",
-                    operational_config={"search_endpoint": ""},
-                ),
-                MediaProvider(
-                    provider_key="archive_internal",
-                    provider_type=ProviderType.ARCHIVE,
-                    source_type=ProviderSourceType.ARCHIVE_INTERNAL,
-                    display_name="Internal Archive",
-                    description="Internal media archive",
-                    base_url="",
-                    operational_config={"storage_path": "/archive"},
-                ),
-            ]
+    def set_repository(self, repository) -> None:
+        self._repository = repository
 
-            for provider in default_providers:
-                self._registry.register(provider)
+    async def initialize_from_db(self) -> None:
+        if not self._repository:
+            return
 
-            logger.info("default_providers_initialized", count=len(default_providers))
+        try:
+            db_providers = await self._repository.list_all_providers()
+            if db_providers:
+                for provider in db_providers:
+                    self._registry.register(provider)
+                logger.info("providers_loaded_from_db", count=len(db_providers))
+            else:
+                await self._seed_defaults()
+        except Exception as e:
+            logger.warning("db_load_failed_fallback_memory", error=str(e))
+            self._seed_defaults_sync()
+
+    async def _seed_defaults(self) -> None:
+        default_providers = self._get_default_providers()
+        for provider in default_providers:
+            self._registry.register(provider)
+            if self._repository:
+                try:
+                    await self._repository.save_provider(provider)
+                except Exception as e:
+                    logger.warning("provider_persist_failed", provider_key=provider.provider_key, error=str(e))
+        logger.info("default_providers_initialized", count=len(default_providers))
+
+    def _seed_defaults_sync(self) -> None:
+        default_providers = self._get_default_providers()
+        for provider in default_providers:
+            self._registry.register(provider)
+        logger.info("default_providers_initialized_sync", count=len(default_providers))
+
+    def _get_default_providers(self) -> list[MediaProvider]:
+        return [
+            MediaProvider(
+                provider_key="pexels",
+                provider_type=ProviderType.STOCK_IMAGE,
+                source_type=ProviderSourceType.STOCK_AUTOMATIC,
+                display_name="Pexels",
+                description="Free stock photos and videos",
+                base_url="https://api.pexels.com/v1",
+                operational_config={"search_endpoint": "/search"},
+            ),
+            MediaProvider(
+                provider_key="pixabay",
+                provider_type=ProviderType.STOCK_IMAGE,
+                source_type=ProviderSourceType.STOCK_AUTOMATIC,
+                display_name="Pixabay",
+                description="Free images and videos",
+                base_url="https://pixabay.com/api",
+                operational_config={"search_endpoint": ""},
+            ),
+            MediaProvider(
+                provider_key="archive_internal",
+                provider_type=ProviderType.ARCHIVE,
+                source_type=ProviderSourceType.ARCHIVE_INTERNAL,
+                display_name="Internal Archive",
+                description="Internal media archive",
+                base_url="",
+                operational_config={"storage_path": "/archive"},
+            ),
+        ]
 
     async def create_provider(
         self,
@@ -80,6 +112,12 @@ class ProviderRegistryService:
 
         self._registry.register(provider)
 
+        if self._repository:
+            try:
+                await self._repository.save_provider(provider)
+            except Exception as e:
+                logger.warning("provider_persist_failed", provider_key=provider_key, error=str(e))
+
         logger.info(
             "provider_created",
             provider_id=provider.id.hex,
@@ -92,10 +130,26 @@ class ProviderRegistryService:
         return provider
 
     async def get_provider(self, provider_id: UUID) -> Optional[MediaProvider]:
-        return self._registry.get(provider_id)
+        provider = self._registry.get(provider_id)
+        if provider:
+            return provider
+        if self._repository:
+            try:
+                return await self._repository.get_provider(provider_id)
+            except Exception:
+                pass
+        return None
 
     async def get_provider_by_key(self, provider_key: str) -> Optional[MediaProvider]:
-        return self._registry.get_by_key(provider_key)
+        provider = self._registry.get_by_key(provider_key)
+        if provider:
+            return provider
+        if self._repository:
+            try:
+                return await self._repository.get_provider_by_key(provider_key)
+            except Exception:
+                pass
+        return None
 
     async def list_providers(
         self,
@@ -132,6 +186,12 @@ class ProviderRegistryService:
     ) -> Optional[MediaProvider]:
         provider = self._registry.update(provider_id, **kwargs)
 
+        if provider and self._repository:
+            try:
+                await self._repository.save_provider(provider)
+            except Exception as e:
+                logger.warning("provider_persist_failed", provider_id=provider_id.hex, error=str(e))
+
         if provider:
             logger.info(
                 "provider_updated",
@@ -145,6 +205,12 @@ class ProviderRegistryService:
     async def enable_provider(self, provider_id: UUID) -> Optional[MediaProvider]:
         provider = self._registry.enable(provider_id)
 
+        if provider and self._repository:
+            try:
+                await self._repository.save_provider(provider)
+            except Exception as e:
+                logger.warning("provider_persist_failed", provider_id=provider_id.hex, error=str(e))
+
         if provider:
             logger.info("provider_enabled", provider_id=provider_id.hex)
             self._emit_audit_event(provider, "enabled")
@@ -153,6 +219,12 @@ class ProviderRegistryService:
 
     async def disable_provider(self, provider_id: UUID) -> Optional[MediaProvider]:
         provider = self._registry.disable(provider_id)
+
+        if provider and self._repository:
+            try:
+                await self._repository.save_provider(provider)
+            except Exception as e:
+                logger.warning("provider_persist_failed", provider_id=provider_id.hex, error=str(e))
 
         if provider:
             logger.info("provider_disabled", provider_id=provider_id.hex)
@@ -166,6 +238,12 @@ class ProviderRegistryService:
             return False
 
         deleted = self._registry.unregister(provider_id)
+
+        if deleted and self._repository:
+            try:
+                await self._repository.delete_provider(provider_id)
+            except Exception as e:
+                logger.warning("provider_delete_persist_failed", provider_id=provider_id.hex, error=str(e))
 
         if deleted:
             logger.info("provider_deleted", provider_id=provider_id.hex)

@@ -1,4 +1,4 @@
-from uuid import UUID
+from uuid import UUID, uuid4
 from typing import Optional
 import time
 
@@ -20,6 +20,10 @@ logger = get_logger(__name__)
 class RenderSubmissionService:
     def __init__(self):
         self._submissions: dict[UUID, RenderSubmissionContract] = {}
+        self._repository = None
+
+    def set_repository(self, repository) -> None:
+        self._repository = repository
 
     async def submit(
         self,
@@ -35,6 +39,7 @@ class RenderSubmissionService:
             status=SubmissionStatus.VALIDATING,
         )
         self._submissions[contract.submission_id] = contract
+        await self._persist(contract)
 
         with LoggingContext(
             production_id=payload.production_id.hex,
@@ -49,6 +54,7 @@ class RenderSubmissionService:
                     duration_ms=(time.time() - start_time) * 1000,
                 )
                 logger.warning("validation_failed", errors=validation_errors)
+                await self._persist(contract)
                 return contract.result
 
             logger.info("payload_validated", provider=provider)
@@ -64,6 +70,7 @@ class RenderSubmissionService:
             )
             contract.result = submission_result
             contract.updated_at = submission_result.submitted_at or contract.updated_at
+            await self._persist(contract)
 
             logger.info(
                 "submission_completed",
@@ -133,7 +140,7 @@ class RenderSubmissionService:
             )
 
     async def _call_provider_api(self, provider: str, payload: dict) -> str:
-        return f"{provider}_job_{UUID.uuid4().hex[:8]}"
+        return f"{provider}_job_{uuid4().hex[:8]}"
 
     async def reconcile_job_state(
         self,
@@ -149,6 +156,7 @@ class RenderSubmissionService:
         job_state = await self._poll_provider_status(provider, external_job_id)
 
         contract.job_states.append(job_state)
+        await self._persist(contract)
 
         logger.info(
             "job_state_reconciled",
@@ -202,6 +210,8 @@ class RenderSubmissionService:
 
             self._emit_completion_audit(contract, status)
 
+        await self._persist(contract)
+
         logger.info(
             "webhook_received",
             submission_id=submission_id.hex,
@@ -220,6 +230,13 @@ class RenderSubmissionService:
         return [
             s for s in self._submissions.values() if s.production_id == production_id
         ]
+
+    async def _persist(self, contract: RenderSubmissionContract) -> None:
+        if self._repository:
+            try:
+                await self._repository.save(contract)
+            except Exception as e:
+                logger.warning("submission_persist_failed", submission_id=contract.submission_id.hex, error=str(e))
 
     def _emit_completion_audit(self, contract: RenderSubmissionContract, status: str) -> None:
         if status == "completed":

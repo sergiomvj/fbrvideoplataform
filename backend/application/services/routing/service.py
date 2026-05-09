@@ -23,11 +23,15 @@ class RoutingService:
         self._requery_workflow = requery_workflow
         self._review_queue: dict[UUID, ReviewQueueItem] = {}
         self._query_builder = None
+        self._review_repository = None
 
     def set_query_builder(self, query_builder) -> None:
         self._query_builder = query_builder
 
-    def route_verification_result(
+    def set_review_repository(self, repository) -> None:
+        self._review_repository = repository
+
+    async def route_verification_result(
         self,
         result: VerificationResult,
         brief_data: dict,
@@ -52,7 +56,7 @@ class RoutingService:
             if decision == OperationalDecision.REQUERY_NEEDED:
                 return self._handle_requery(result)
             elif decision == OperationalDecision.REVIEW_REQUIRED:
-                return self._handle_review_queue(result, brief_data, candidate_data)
+                return await self._handle_review_queue(result, brief_data, candidate_data)
             elif decision == OperationalDecision.AUTO_APPROVED:
                 logger.info("auto_approved_skipping_queue", score=result.score)
                 return "auto_approved"
@@ -99,7 +103,7 @@ class RoutingService:
             self._emit_requery_audit(result, 1)
             return "requery_created"
 
-    def _handle_review_queue(
+    async def _handle_review_queue(
         self,
         result: VerificationResult,
         brief_data: dict,
@@ -117,6 +121,12 @@ class RoutingService:
         )
 
         self._review_queue[item.id] = item
+
+        if self._review_repository:
+            try:
+                await self._review_repository.save_item(item)
+            except Exception as e:
+                logger.warning("review_item_persist_failed", item_id=item.id.hex, error=str(e))
 
         logger.info(
             "review_queue_item_created",

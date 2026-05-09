@@ -11,17 +11,16 @@ function ReviewPageContent() {
   const productionId = searchParams.get("production_id") ?? "";
 
   const [items, setItems] = useState<ReviewItemData[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(!!productionId);
+  const [error, setError] = useState<string | null>(
+    !productionId ? "Missing production_id query parameter" : null,
+  );
   const [processingId, setProcessingId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!productionId) {
-      setLoading(false);
-      setError("Missing production_id query parameter");
-      return;
-    }
+    if (!productionId) return;
 
+    let cancelled = false;
     async function fetchQueue() {
       setLoading(true);
       setError(null);
@@ -29,15 +28,22 @@ function ReviewPageContent() {
         const res = await fetch(`/api/review/${productionId}`);
         if (!res.ok) throw new Error(`Failed to load review queue (${res.status})`);
         const data = await res.json();
-        setItems(Array.isArray(data) ? data : data.items ?? []);
+        if (!cancelled) {
+          setItems(Array.isArray(data) ? data : data.items ?? []);
+        }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Unknown error");
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Unknown error");
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     }
 
     fetchQueue();
+    return () => { cancelled = true; };
   }, [productionId]);
 
   async function handleAction(id: string, action: "approve" | "reject" | "requery") {
@@ -54,7 +60,6 @@ function ReviewPageContent() {
     } finally {
       setProcessingId(null);
     }
-  }
   }
 
   const pendingCount = items.filter((i) => i.status === "pending").length;

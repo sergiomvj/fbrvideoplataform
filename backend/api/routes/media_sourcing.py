@@ -1,11 +1,24 @@
-from fastapi import APIRouter, HTTPException
+from __future__ import annotations
+
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
-from uuid import UUID
+from uuid import UUID, uuid4
 from typing import Optional
+from datetime import datetime, timezone
+
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from domain.visual_planning import VisualBrief
-from domain.media_sourcing import MediaSourceType, SourcingResult
+from domain.media_sourcing import (
+    MediaSourceType,
+    SourcingResult,
+    QueryAttempt,
+    QueryStrategy,
+    QueryStrategyType,
+)
 from application.services.media_sourcing import media_sourcing_service
+from infrastructure.db.session import async_session
+from infrastructure.db.query_attempt_repository import QueryAttemptRepository
 from integrations.stock_media import stock_media_adapter
 from integrations.archive_media import archive_media_adapter
 
@@ -15,6 +28,7 @@ router = APIRouter(prefix="/media-sourcing", tags=["media-sourcing"])
 class SourceCandidatesRequest(BaseModel):
     production_id: UUID
     scene_id: UUID
+    brief_id: Optional[UUID] = None
     tema: str
     funcao_visual: str
     assunto_visivel: str
@@ -31,6 +45,7 @@ class SourceCandidatesRequest(BaseModel):
 class SourceCandidatesResponse(BaseModel):
     production_id: UUID
     results: list[dict]
+    query_attempt_id: Optional[str] = None
 
 
 class GetAssetRequest(BaseModel):
@@ -40,7 +55,10 @@ class GetAssetRequest(BaseModel):
 
 
 @router.post("/source", response_model=SourceCandidatesResponse)
-async def source_candidates(request: SourceCandidatesRequest):
+async def source_candidates(
+    request: SourceCandidatesRequest,
+    session: AsyncSession = Depends(async_session),
+):
     brief = VisualBrief(
         scene_id=request.scene_id,
         tema=request.tema,
@@ -58,11 +76,44 @@ async def source_candidates(request: SourceCandidatesRequest):
     if request.source_types:
         source_types = [MediaSourceType(st) for st in request.source_types]
 
+    brief_id = request.brief_id or uuid4()
+
+    attempt = QueryAttempt(
+        production_id=request.production_id,
+        scene_id=request.scene_id,
+        brief_id=brief_id,
+        strategy=QueryStrategy(
+            strategy_type=QueryStrategyType.CONTEXTUAL,
+            keywords=[request.tema, request.assunto_visivel],
+            max_results=request.max_results,
+        ),
+        provider_key="multi",
+        attempt_number=1,
+        query_params={
+            "tema": request.tema,
+            "funcao_visual": request.funcao_visual,
+            "source_types": request.source_types,
+        },
+    )
+
+    query_repo = QueryAttemptRepository(session)
+    await query_repo.save(attempt)
+
     results = await media_sourcing_service.source_candidates(
         brief=brief,
         production_id=request.production_id,
         source_types=source_types,
         max_results_per_source=request.max_results,
+    )
+
+    total_candidates = sum(len(r.candidates) for r in results)
+    has_errors = any(r.error_message for r in results)
+
+    await query_repo.update_result(
+        attempt_id=attempt.id,
+        candidate_count=total_candidates,
+        diagnostic="provider_error" if has_errors else None,
+        diagnostic_details="; ".join(r.error_message for r in results if r.error_message) if has_errors else "",
     )
 
     return SourceCandidatesResponse(
@@ -86,6 +137,7 @@ async def source_candidates(request: SourceCandidatesRequest):
             }
             for r in results
         ],
+        query_attempt_id=attempt.id.hex,
     )
 
 
