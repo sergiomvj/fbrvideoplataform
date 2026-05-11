@@ -18,57 +18,24 @@ async def _get_repo(session: AsyncSession = Depends(async_session)) -> ReviewRep
     return ReviewRepository(session)
 
 
-def _item_to_response(item: ReviewQueueItem, index: int = 0) -> ReviewQueueItemResponse:
-    scene_label = f"Scene {index}"
-    score = 0.0
-    justification = ""
-    decision = "human_review"
-    asset_url = ""
-    asset_type = ""
-    source = ""
-    preview_url = ""
-
-    if hasattr(item, "candidate_data") and isinstance(item.candidate_data, dict):
-        asset_url = item.candidate_data.get("asset_url", "")
-        asset_type = item.candidate_data.get("asset_type", "")
-        source = item.candidate_data.get("source", "")
-        preview_url = item.candidate_data.get("preview_url", "")
-
-    if hasattr(item, "brief_data") and isinstance(item.brief_data, dict):
-        label = item.brief_data.get("scene_label", "")
-        if label:
-            scene_label = label
-        idx = item.brief_data.get("scene_index")
-        if idx is not None:
-            index = idx
-
-    if hasattr(item, "score"):
-        score = float(item.score)
-
-    if hasattr(item, "rationale"):
-        justification = item.rationale or ""
-
-    if hasattr(item, "status"):
-        status_val = item.status
-        if hasattr(status_val, "value"):
-            status_val = status_val.value
-        decision = str(status_val)
+def _item_to_response(item: ReviewQueueItem) -> ReviewQueueItemResponse:
+    scene_label = item.scene_label or f"Scene {item.scene_index}"
 
     return ReviewQueueItemResponse(
         id=str(item.id),
         production_id=str(item.production_id),
         scene_id=str(item.scene_id),
-        scene_index=index,
+        scene_index=item.scene_index,
         scene_label=scene_label,
         asset_id=str(getattr(item, "asset_id", getattr(item, "candidate_id", item.id))),
-        asset_url=asset_url,
-        asset_type=asset_type,
-        source=source,
-        score=score,
-        justification=justification,
-        decision=decision,
-        status=str(item.status) if not hasattr(item.status, "value") else item.status.value,
-        preview_url=preview_url,
+        asset_url=item.asset_url,
+        asset_type=item.asset_type,
+        source=item.source,
+        score=item.score,
+        justification=item.rationale,
+        decision=item.status,
+        status=item.status,
+        preview_url=item.preview_url,
     )
 
 
@@ -79,7 +46,7 @@ async def list_pending_reviews(
     repo: ReviewRepository = Depends(_get_repo),
 ) -> ReviewListResponse:
     items = await repo.get_pending(UUID(production_id))
-    responses = [_item_to_response(item, idx) for idx, item in enumerate(items)]
+    responses = [_item_to_response(item) for item in items]
     return ReviewListResponse(items=responses, total_count=len(responses))
 
 

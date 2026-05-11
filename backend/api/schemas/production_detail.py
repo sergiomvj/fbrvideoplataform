@@ -53,3 +53,40 @@ class ProductionDetailResponse(BaseModel):
     state_history: list[StateHistoryEntry] = Field(default_factory=list)
     composition: CompositionSummaryResponse | None = None
     render_job: RenderJobSummaryResponse | None = None
+    narrative: NarrativeResponse | None = None
+    briefs: list[BriefResponse] = Field(default_factory=list)
+
+
+class NarrativeBlockResponse(BaseModel):
+    id: str
+    role: str
+    text: str
+    estimated_duration_seconds: float
+    scene_index: int
+
+
+class NarrativeResponse(BaseModel):
+    production_id: str
+    template_type_id: str
+    variation_id: str
+    objective: str
+    target_duration_seconds: float
+    total_duration: float
+    blocks: list[NarrativeBlockResponse] = Field(default_factory=list)
+
+
+class BriefResponse(BaseModel):
+    id: str
+    scene_id: str
+    scene_index: int
+    tema: str
+    funcao_visual: str
+    assunto_visivel: str
+    contexto_geografico_cultural: str
+    periodo: str
+    tom_editorial: str
+    nivel_literalidade: str
+    permitidos: list[str]
+    proibidos: list[str]
+    tipo_ativo_preferido: str
+    template_type_id: str

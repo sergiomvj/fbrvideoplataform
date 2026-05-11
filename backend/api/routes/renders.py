@@ -134,7 +134,7 @@ async def reconcile_render(
     if not job.external_job_id:
         raise AppError(message="No external job ID to reconcile", status_code=400)
 
-    submissions = render_submission_service.get_submissions_for_production(UUID(production_id))
+    submissions = await render_submission_service.get_submissions_for_production(UUID(production_id))
     if not submissions:
         raise AppError(message="No submission found for reconciliation", status_code=404)
 
@@ -164,4 +164,54 @@ async def reconcile_render(
         "progress": job_state.progress,
         "external_job_id": job.external_job_id,
         "updated_at": updated.updated_at.isoformat() if updated else None,
+    }
+
+
+class WebhookPayload(BaseModel):
+    submission_id: str
+    provider: str
+    status: str
+    external_job_id: str = ""
+    progress: float = 1.0
+    result_url: str | None = None
+    error: str | None = None
+
+
+@router.post("/webhook", status_code=200)
+async def render_webhook(
+    payload: WebhookPayload,
+    session: AsyncSession = Depends(_get_session),
+) -> dict:
+    submission_id = UUID(payload.submission_id)
+    contract = await render_submission_service.handle_webhook(
+        submission_id=submission_id,
+        provider=payload.provider,
+        webhook_payload={
+            "status": payload.status,
+            "external_job_id": payload.external_job_id,
+            "progress": payload.progress,
+            "result_url": payload.result_url,
+            "error": payload.error,
+        },
+    )
+
+    if not contract:
+        raise AppError(message="Submission not found", status_code=404)
+
+    render_repo = RenderRepository(session)
+    job = await render_repo.get_by_production(contract.production_id)
+    if job:
+        new_status = RenderJobStatus.PROCESSING
+        if payload.status == "completed":
+            new_status = RenderJobStatus.COMPLETED
+        elif payload.status == "failed":
+            new_status = RenderJobStatus.FAILED
+        await render_repo.update_status(
+            job.id, new_status, error_message=payload.error
+        )
+
+    return {
+        "submission_id": contract.submission_id.hex,
+        "status": contract.status.value,
+        "provider": payload.provider,
     }

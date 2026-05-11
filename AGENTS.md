@@ -14,9 +14,9 @@ Este arquivo define as instrucoes do projeto para o Codex CLI.
 <!-- AIOX-MANAGED-START: quality -->
 ## Quality Gates
 
-- Rode `npm run lint`
-- Rode `npm run typecheck`
-- Rode `npm test`
+- Rode `npm run lint` (frontend ESLint)
+- Rode `npm run typecheck` (TypeScript type checking)
+- Rode `npm test` (backend syntax validation via py_compileall)
 - Atualize checklist e file list da story antes de concluir
 <!-- AIOX-MANAGED-END: quality -->
 

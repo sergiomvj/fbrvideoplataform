@@ -42,6 +42,41 @@ interface RenderJobSummary {
   error_message: string | null;
 }
 
+interface NarrativeBlock {
+  id: string;
+  role: string;
+  text: string;
+  estimated_duration_seconds: number;
+  scene_index: number;
+}
+
+interface NarrativeSummary {
+  production_id: string;
+  template_type_id: string;
+  variation_id: string;
+  objective: string;
+  target_duration_seconds: number;
+  total_duration: number;
+  blocks: NarrativeBlock[];
+}
+
+interface BriefSummary {
+  id: string;
+  scene_id: string;
+  scene_index: number;
+  tema: string;
+  funcao_visual: string;
+  assunto_visivel: string;
+  contexto_geografico_cultural: string;
+  periodo: string;
+  tom_editorial: string;
+  nivel_literalidade: string;
+  permitidos: string[];
+  proibidos: string[];
+  tipo_ativo_preferido: string;
+  template_type_id: string;
+}
+
 interface ProductionDetail {
   id: string;
   title: string;
@@ -59,6 +94,8 @@ interface ProductionDetail {
   state_history: StateHistoryEntry[];
   composition: CompositionSummary | null;
   render_job: RenderJobSummary | null;
+  narrative: NarrativeSummary | null;
+  briefs: BriefSummary[];
 }
 
 function inferStateVariant(state: string): StateVariant {
@@ -141,6 +178,72 @@ export default function ProductionDetailPage() {
       </div>
 
       <CompositionPreview composition={production.composition} />
+
+      {production.narrative && production.narrative.blocks.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Narrative Structure</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="mb-3 text-sm text-gray-600">
+              <span className="font-medium">Objective:</span> {production.narrative.objective}
+            </div>
+            <div className="mb-3 flex gap-4 text-xs text-gray-500">
+              <span>Target: {production.narrative.target_duration_seconds}s</span>
+              <span>Total: {production.narrative.total_duration.toFixed(1)}s</span>
+            </div>
+            <div className="space-y-2">
+              {production.narrative.blocks.map((block) => (
+                <div
+                  key={block.id}
+                  className="rounded-lg border border-gray-100 p-3"
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <span className="text-xs font-medium uppercase tracking-wider text-gray-500">
+                      {block.role}
+                    </span>
+                    <span className="text-xs text-gray-400">
+                      Scene {block.scene_index} · {block.estimated_duration_seconds}s
+                    </span>
+                  </div>
+                  <p className="text-sm text-gray-700">{block.text}</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {production.briefs && production.briefs.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Visual Briefs</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {production.briefs.map((brief) => (
+                <div
+                  key={brief.id}
+                  className="rounded-lg border border-gray-100 p-3"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-gray-900">
+                      Scene {brief.scene_index}: {brief.tema}
+                    </span>
+                    <span className="text-xs text-gray-400">{brief.funcao_visual}</span>
+                  </div>
+                  <p className="text-xs text-gray-600 mb-1">{brief.assunto_visivel}</p>
+                  <div className="flex flex-wrap gap-2 text-xs text-gray-500">
+                    <span>Tom: {brief.tom_editorial}</span>
+                    <span>Literalidade: {brief.nivel_literalidade}</span>
+                    <span>Tipo: {brief.tipo_ativo_preferido}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+         </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

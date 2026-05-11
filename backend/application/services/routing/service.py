@@ -112,7 +112,7 @@ class RoutingService:
         item = ReviewQueueItem(
             production_id=result.production_id,
             scene_id=result.brief_id,
-            candidate_id=result.candidate_id,
+            asset_id=result.candidate_id,
             brief_data=brief_data,
             candidate_data=candidate_data,
             score=result.score,
@@ -120,13 +120,13 @@ class RoutingService:
             flags=[f.value for f in result.flags],
         )
 
-        self._review_queue[item.id] = item
-
         if self._review_repository:
             try:
                 await self._review_repository.save_item(item)
             except Exception as e:
                 logger.warning("review_item_persist_failed", item_id=item.id.hex, error=str(e))
+
+        self._review_queue[item.id] = item
 
         logger.info(
             "review_queue_item_created",
@@ -147,7 +147,16 @@ class RoutingService:
                 return attempt
         return None
 
-    def get_review_queue(self, production_id: UUID) -> list[ReviewQueueItem]:
+    async def get_review_queue(self, production_id: UUID) -> list[ReviewQueueItem]:
+        if self._review_repository:
+            try:
+                items = await self._review_repository.get_pending(production_id)
+                if items:
+                    for item in items:
+                        self._review_queue[item.id] = item
+                    return items
+            except Exception:
+                pass
         return [
             item
             for item in self._review_queue.values()
@@ -155,7 +164,7 @@ class RoutingService:
             and item.status == ReviewQueueStatus.PENDING
         ]
 
-    def approve_review_item(
+    async def approve_review_item(
         self, item_id: UUID, reviewer: str
     ) -> ReviewQueueItem | None:
         item = self._review_queue.get(item_id)
@@ -163,11 +172,16 @@ class RoutingService:
             item.status = ReviewQueueStatus.APPROVED
             item.reviewed_at = datetime.utcnow()
             item.reviewed_by = reviewer
+            if self._review_repository:
+                try:
+                    await self._review_repository.save_item(item)
+                except Exception as e:
+                    logger.warning("review_item_approve_persist_failed", item_id=item_id.hex, error=str(e))
             logger.info("review_item_approved", item_id=item_id.hex, reviewer=reviewer)
             return item
         return None
 
-    def reject_review_item(
+    async def reject_review_item(
         self, item_id: UUID, reviewer: str
     ) -> ReviewQueueItem | None:
         item = self._review_queue.get(item_id)
@@ -175,6 +189,11 @@ class RoutingService:
             item.status = ReviewQueueStatus.REJECTED
             item.reviewed_at = datetime.utcnow()
             item.reviewed_by = reviewer
+            if self._review_repository:
+                try:
+                    await self._review_repository.save_item(item)
+                except Exception as e:
+                    logger.warning("review_item_reject_persist_failed", item_id=item_id.hex, error=str(e))
             logger.info("review_item_rejected", item_id=item_id.hex, reviewer=reviewer)
             return item
         return None

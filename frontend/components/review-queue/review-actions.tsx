@@ -16,7 +16,7 @@ export function ReviewActions({ onApprove, onReject, onRequery, disabled, proces
       <Button
         onClick={onApprove}
         disabled={disabled || processing}
-        variant="success"
+        variant="primary"
         size="sm"
       >
         {processing ? "Processing..." : "Approve"}

@@ -11,6 +11,17 @@ class ReviewQueueItem:
     scene_id: UUID = field(default_factory=uuid4)
     asset_id: UUID = field(default_factory=uuid4)
     status: str = "pending"
+    score: float = 0.0
+    rationale: str = ""
+    scene_index: int = 0
+    scene_label: str = ""
+    asset_url: str = ""
+    asset_type: str = ""
+    source: str = ""
+    preview_url: str = ""
+    brief_data: dict = field(default_factory=dict)
+    candidate_data: dict = field(default_factory=dict)
+    flags: list[str] = field(default_factory=list)
 
 
 class ReviewQueue:

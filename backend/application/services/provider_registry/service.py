@@ -157,6 +157,19 @@ class ProviderRegistryService:
         source_type: Optional[ProviderSourceType] = None,
         status: Optional[ProviderStatus] = None,
     ) -> list[MediaProvider]:
+        if self._repository:
+            try:
+                providers = await self._repository.list_providers(
+                    provider_type=provider_type,
+                    source_type=source_type,
+                    status=status,
+                )
+                if providers:
+                    for p in providers:
+                        self._registry.register(p)
+                    return providers
+            except Exception:
+                pass
         providers = self._registry.list_all()
 
         if provider_type:
@@ -172,6 +185,15 @@ class ProviderRegistryService:
         self,
         source_type: Optional[ProviderSourceType] = None,
     ) -> list[MediaProvider]:
+        if self._repository:
+            try:
+                providers = await self._repository.list_active_providers(source_type=source_type)
+                if providers:
+                    for p in providers:
+                        self._registry.register(p)
+                    return providers
+            except Exception:
+                pass
         providers = self._registry.list_active()
 
         if source_type:

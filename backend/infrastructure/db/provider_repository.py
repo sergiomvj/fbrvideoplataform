@@ -90,10 +90,16 @@ class ProviderRepository:
             return None
         return self._to_domain(model)
 
-    async def list_active_providers(self, organization_id: UUID) -> List[MediaProvider]:
+    async def list_active_providers(
+        self,
+        organization_id: Optional[UUID] = None,
+        source_type: Optional[ProviderSourceType] = None,
+    ) -> List[MediaProvider]:
         stmt = select(MediaProviderModel).where(
             MediaProviderModel.status == ProviderStatus.ACTIVE.value,
         )
+        if source_type:
+            stmt = stmt.where(MediaProviderModel.source_type == source_type.value)
         result = await self.session.execute(stmt)
         return [self._to_domain(m) for m in result.scalars().all()]
 
@@ -106,6 +112,25 @@ class ProviderRepository:
         stmt = select(MediaProviderModel).where(
             MediaProviderModel.provider_type == provider_type,
         )
+        result = await self.session.execute(stmt)
+        return [self._to_domain(m) for m in result.scalars().all()]
+
+    async def list_providers(
+        self,
+        provider_type: Optional[ProviderType] = None,
+        source_type: Optional[ProviderSourceType] = None,
+        status: Optional[ProviderStatus] = None,
+    ) -> List[MediaProvider]:
+        stmt = select(MediaProviderModel)
+        conditions = []
+        if provider_type:
+            conditions.append(MediaProviderModel.provider_type == provider_type.value)
+        if source_type:
+            conditions.append(MediaProviderModel.source_type == source_type.value)
+        if status:
+            conditions.append(MediaProviderModel.status == status.value)
+        if conditions:
+            stmt = stmt.where(*conditions)
         result = await self.session.execute(stmt)
         return [self._to_domain(m) for m in result.scalars().all()]
 

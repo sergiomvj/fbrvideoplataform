@@ -15,8 +15,25 @@ export function TemplateStep() {
   useEffect(() => {
     async function fetchTemplates() {
       try {
-        const res = await fetch("/api/templates/");
-        if (!res.ok) throw new Error("Failed to fetch templates");
+        const res = await fetch("/api/templates/", { cache: "no-store" });
+        if (!res.ok) {
+          const body = await res.json().catch(() => null);
+          const backendMessage =
+            body && typeof body === "object" && "error" in body && typeof body.error === "string"
+              ? body.error
+              : null;
+          let message = backendMessage || `Failed to fetch templates (${res.status})`;
+
+          if (res.status === 401) {
+            message = backendMessage || "Authentication required. Reload the page and log in again.";
+          } else if (res.status === 404) {
+            message =
+              backendMessage ||
+              "Templates endpoint was not resolved. Check whether the Synkra backend is running on the configured port.";
+          }
+
+          throw new Error(message);
+        }
         const json = await res.json();
         const items: Template[] = Array.isArray(json) ? json : json.templates ?? json.data ?? [];
         setTemplates(items);

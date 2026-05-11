@@ -4,8 +4,8 @@
   "private": true,
   "scripts": {
     "lint": "npm run lint --workspace=frontend",
-    "typecheck": "npm run build --workspace=frontend",
-    "test": "echo \"No root tests configured\" && exit 0",
+    "typecheck": "npm run -w frontend typecheck",
+    "test": "py -m compileall backend -q",
     "validate:structure": "node scripts/validate-structure.js 2>/dev/null || echo \"validate:structure not available\"",
     "validate:agents": "echo \"validate:agents not available\" && exit 0"
   },

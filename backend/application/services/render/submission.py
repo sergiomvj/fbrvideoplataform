@@ -148,10 +148,12 @@ class RenderSubmissionService:
         provider: str,
         external_job_id: str,
     ) -> Optional[ProviderJobState]:
-        contract = self._submissions.get(submission_id)
+        contract = await self.get_submission(submission_id)
         if not contract:
             logger.warning("submission_not_found", submission_id=submission_id.hex)
             return None
+
+        self._submissions[contract.submission_id] = contract
 
         job_state = await self._poll_provider_status(provider, external_job_id)
 
@@ -184,9 +186,11 @@ class RenderSubmissionService:
         provider: str,
         webhook_payload: dict,
     ) -> Optional[RenderSubmissionContract]:
-        contract = self._submissions.get(submission_id)
+        contract = await self.get_submission(submission_id)
         if not contract:
             return None
+
+        self._submissions[contract.submission_id] = contract
 
         status = webhook_payload.get("status", "")
 
@@ -221,15 +225,36 @@ class RenderSubmissionService:
 
         return contract
 
-    def get_submission(self, submission_id: UUID) -> Optional[RenderSubmissionContract]:
-        return self._submissions.get(submission_id)
+    async def get_submission(self, submission_id: UUID) -> Optional[RenderSubmissionContract]:
+        if self._repository:
+            try:
+                contract = await self._repository.get_by_id(submission_id)
+                if contract:
+                    self._submissions[contract.submission_id] = contract
+                    return contract
+            except Exception:
+                pass
+        contract = self._submissions.get(submission_id)
+        if contract:
+            return contract
+        return None
 
-    def get_submissions_for_production(
+    async def get_submissions_for_production(
         self, production_id: UUID
     ) -> list[RenderSubmissionContract]:
-        return [
+        if self._repository:
+            try:
+                results = await self._repository.get_by_production(production_id)
+                if results:
+                    for contract in results:
+                        self._submissions[contract.submission_id] = contract
+                    return results
+            except Exception:
+                pass
+        memory_results = [
             s for s in self._submissions.values() if s.production_id == production_id
         ]
+        return memory_results if memory_results else []
 
     async def _persist(self, contract: RenderSubmissionContract) -> None:
         if self._repository:

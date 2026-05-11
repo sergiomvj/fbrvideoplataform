@@ -189,6 +189,17 @@ class ReviewQueueItemModel(Base):
         DateTime(timezone=True), nullable=True
     )
     review_reason: Mapped[str | None] = mapped_column(Text, nullable=True)
+    score: Mapped[float] = mapped_column(Float, nullable=True, default=0.0)
+    rationale: Mapped[str | None] = mapped_column(Text, nullable=True)
+    scene_index: Mapped[int] = mapped_column(Integer, nullable=True, default=0)
+    scene_label: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    asset_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    asset_type: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    source: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    preview_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    brief_data_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    candidate_data_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    flags_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
 
 class ManualBindingModel(Base):

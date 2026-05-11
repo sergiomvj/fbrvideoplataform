@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
@@ -12,9 +13,7 @@ function ReviewPageContent() {
 
   const [items, setItems] = useState<ReviewItemData[]>([]);
   const [loading, setLoading] = useState(!!productionId);
-  const [error, setError] = useState<string | null>(
-    !productionId ? "Missing production_id query parameter" : null,
-  );
+  const [error, setError] = useState<string | null>(null);
   const [processingId, setProcessingId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -45,6 +44,32 @@ function ReviewPageContent() {
     fetchQueue();
     return () => { cancelled = true; };
   }, [productionId]);
+
+  if (!productionId) {
+    return (
+      <div className="space-y-6">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Review Queue</h1>
+          <p className="text-sm text-gray-500 mt-1">
+            Select a production to review its queued items.
+          </p>
+        </div>
+        <Card>
+          <CardContent className="py-12 text-center space-y-4">
+            <p className="text-sm text-gray-500">
+              No production selected. Open a production detail page and navigate to its review queue from there.
+            </p>
+            <Link
+              href="/"
+              className="inline-block rounded-md bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+            >
+              Go to Dashboard
+            </Link>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   async function handleAction(id: string, action: "approve" | "reject" | "requery") {
     setProcessingId(id);

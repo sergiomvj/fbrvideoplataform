@@ -9,8 +9,8 @@ from domain.media_sourcing import (
     SourcingResult,
     SourcingOutcome,
     ProviderSourceType,
-    provider_registry,
 )
+from application.services.provider_registry import provider_registry_service
 from domain.audit import audit_service, AuditEventType
 from infrastructure.logging import get_logger, LoggingContext
 
@@ -20,7 +20,7 @@ logger = get_logger(__name__)
 class MediaSourcingService:
     def __init__(self):
         self._adapters: dict[MediaSourceType, MediaSourceAdapter] = {}
-        self._provider_registry = provider_registry
+        self._provider_registry = provider_registry_service
 
     def register_adapter(self, adapter: MediaSourceAdapter) -> None:
         self._adapters[adapter.source_type] = adapter
@@ -29,11 +29,11 @@ class MediaSourcingService:
     def get_adapter(self, source_type: MediaSourceType) -> Optional[MediaSourceAdapter]:
         return self._adapters.get(source_type)
 
-    def resolve_active_providers(
+    async def resolve_active_providers(
         self,
         source_types: list[MediaSourceType] | None = None,
     ) -> list:
-        active_providers = self._provider_registry.list_active()
+        active_providers = await self._provider_registry.list_active_providers()
         if source_types:
             source_type_values = [st.value for st in source_types]
             active_providers = [
@@ -51,7 +51,7 @@ class MediaSourcingService:
     ) -> list[SourcingResult]:
         results: list[SourcingResult] = []
 
-        providers = self.resolve_active_providers(source_types)
+        providers = await self.resolve_active_providers(source_types)
 
         with LoggingContext(production_id=production_id.hex, scene_id=brief.scene_id.hex):
             for provider in providers:

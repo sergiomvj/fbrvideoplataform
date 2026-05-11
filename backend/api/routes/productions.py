@@ -25,8 +25,11 @@ from api.schemas.productions import (
     StateTransitionResponse,
 )
 from api.schemas.production_detail import (
+    BriefResponse,
     CompositionSlotResponse,
     CompositionSummaryResponse,
+    NarrativeBlockResponse,
+    NarrativeResponse,
     ProductionDetailResponse,
     RenderJobSummaryResponse,
     StateHistoryEntry,
@@ -413,6 +416,49 @@ def _to_production_detail_response(
             error_message=render_job.error_message,
         )
 
+    narrative_response = None
+    if narrative is not None:
+        narrative_response = NarrativeResponse(
+            production_id=str(narrative.production_id),
+            template_type_id=narrative.template_type_id,
+            variation_id=narrative.variation_id,
+            objective=narrative.objective,
+            target_duration_seconds=narrative.target_duration_seconds,
+            total_duration=narrative.total_duration,
+            blocks=[
+                NarrativeBlockResponse(
+                    id=str(b.id),
+                    role=b.role.value,
+                    text=b.text,
+                    estimated_duration_seconds=b.estimated_duration_seconds,
+                    scene_index=b.scene_index,
+                )
+                for b in narrative.blocks
+            ],
+        )
+
+    brief_responses = []
+    if briefs:
+        brief_responses = [
+            BriefResponse(
+                id=str(b.id),
+                scene_id=str(b.scene_id),
+                scene_index=b.scene_index,
+                tema=b.tema,
+                funcao_visual=b.funcao_visual.value,
+                assunto_visivel=b.assunto_visivel,
+                contexto_geografico_cultural=b.contexto_geografico_cultural,
+                periodo=b.periodo,
+                tom_editorial=b.tom_editorial,
+                nivel_literalidade=b.nivel_literalidade.value,
+                permitidos=b.permitidos,
+                proibidos=b.proibidos,
+                tipo_ativo_preferido=b.tipo_ativo_preferido.value,
+                template_type_id=b.template_type_id,
+            )
+            for b in briefs
+        ]
+
     return ProductionDetailResponse(
         id=str(p.id),
         title=p.title,
@@ -445,6 +491,8 @@ def _to_production_detail_response(
         ],
         composition=composition_summary,
         render_job=render_summary,
+        narrative=narrative_response,
+        briefs=brief_responses,
     )
 
 

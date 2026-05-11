@@ -6,13 +6,24 @@ from fastapi.responses import PlainTextResponse
 from infrastructure.settings.config import Settings
 from infrastructure.logging import configure_logging
 from infrastructure.metrics import metrics_collector
+from infrastructure.db.session import async_session
+from infrastructure.db.provider_repository import ProviderRepository
+from infrastructure.db.render_submission_repository import RenderSubmissionRepository
+from infrastructure.db.query_attempt_repository import QueryAttemptRepository
+from infrastructure.db.review_repository import ReviewRepository
 from application.errors import AppError, app_error_handler, generic_error_handler
 from application.services.media_sourcing import media_sourcing_service
+from application.services.provider_registry.service import provider_registry_service
+from application.services.render.submission import render_submission_service
+from application.services.query_builder.service import query_builder_service
+from application.services.routing.service import routing_service
 from api.routes.productions import router as productions_router
 from api.routes.templates import router as templates_router
 from api.routes.renders import router as renders_router
 from api.routes.review import router as review_router
 from api.routes.media_sourcing import router as media_sourcing_router
+from api.routes.providers import router as providers_router
+from api.routes.auth import router as auth_router
 from integrations.stock_media import stock_media_adapter
 from integrations.archive_media import archive_media_adapter
 from prometheus_client import generate_latest, CONTENT_TYPE_LATEST
@@ -23,6 +34,23 @@ async def lifespan(app: FastAPI):
     configure_logging(json_logs=True)
     media_sourcing_service.register_adapter(stock_media_adapter)
     media_sourcing_service.register_adapter(archive_media_adapter)
+
+    async for session in async_session():
+        provider_repo = ProviderRepository(session)
+        provider_registry_service.set_repository(provider_repo)
+        await provider_registry_service.initialize_from_db()
+
+        submission_repo = RenderSubmissionRepository(session)
+        render_submission_service.set_repository(submission_repo)
+
+        attempt_repo = QueryAttemptRepository(session)
+        query_builder_service.set_repository(attempt_repo)
+        routing_service.set_query_builder(query_builder_service)
+
+        review_repo = ReviewRepository(session)
+        routing_service.set_review_repository(review_repo)
+        break
+
     yield
 
 
@@ -52,6 +80,8 @@ app.include_router(templates_router)
 app.include_router(renders_router)
 app.include_router(review_router)
 app.include_router(media_sourcing_router)
+app.include_router(providers_router)
+app.include_router(auth_router)
 
 
 @app.get("/health")
